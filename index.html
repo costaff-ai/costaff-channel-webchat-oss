@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoStaff WebChat | AI Team Workspace</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar: Project Context -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="https://raw.githubusercontent.com/AICoStaff/costaff/main/frontend/assets/logo.png" alt="Logo" class="logo">
+                <h2>CoStaff Team</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <span class="section-title">ACTIVE AGENTS</span>
+                    <ul id="agent-list">
+                        <li><i class="fas fa-robot"></i> CoStaff Manager</li>
+                        <li class="offline"><i class="fas fa-code"></i> Coding Agent</li>
+                        <li class="offline"><i class="fas fa-chart-line"></i> BA Agent</li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <span class="section-title">QUICK ACTIONS</span>
+                    <button id="btn-reset" title="Reset Session"><i class="fas fa-sync"></i> Reset Chat</button>
+                </div>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <i class="fas fa-user-circle"></i>
+                    <span id="user-display-id">Loading ID...</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-area">
+            <header class="chat-header">
+                <div class="channel-info">
+                    <h3><i class="fas fa-comments"></i> Team General</h3>
+                    <p id="system-status">Connected to CoStaff Agent</p>
+                </div>
+            </header>
+
+            <div id="chat-messages" class="messages-container">
+                <!-- Messages will be injected here -->
+                <div class="message system">
+                    <div class="content">Welcome to CoStaff WebChat. Initializing your AI team...</div>
+                </div>
+            </div>
+
+            <footer class="chat-input-area">
+                <div class="input-wrapper">
+                    <textarea id="user-input" placeholder="Type a message or delegate a task..." rows="1"></textarea>
+                    <button id="btn-send"><i class="fas fa-paper-plane"></i></button>
+                </div>
+                <p class="input-hint">Tip: Use "幫我..." to delegate tasks to your team.</p>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+</body>
+</html>

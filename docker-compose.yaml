@@ -1,0 +1,13 @@
+services:
+  webchat:
+    build: .
+    container_name: costaff-webchat
+    restart: always
+    ports:
+      - "18088:80"
+    networks:
+      - costaff_default
+
+networks:
+  costaff_default:
+    external: true

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoStaff WebChat | Login</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>if (localStorage.getItem('webchat_token')) window.location.href = '/';</script>
+    <style>
+        body { display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <div class="ambient-blobs pointer-events-none">
+        <div class="blob w-[700px] h-[900px] bg-blue-600/10 top-[-10%] left-1/2" style="transform:translateX(-50%)"></div>
+    </div>
+    <div class="grid-overlay pointer-events-none"></div>
+
+    <div class="login-card">
+        <!-- Brand -->
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:32px">
+            <div style="width:48px;height:48px;background:var(--primary-container);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <i class="fas fa-robot" style="color:#fff;font-size:1.3rem"></i>
+            </div>
+            <div>
+                <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.4rem;font-weight:800;color:var(--on-surface)">CoStaff</h1>
+                <p style="font-size:.78rem;color:var(--dm-text-muted);margin-top:2px">WebChat · AI Team Workspace</p>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div style="display:flex;background:var(--surface-low);border-radius:10px;padding:4px;gap:4px;margin-bottom:24px">
+            <button class="login-tab active" id="tab-login" onclick="switchTab('login')">Login</button>
+            <button class="login-tab" id="tab-register" onclick="switchTab('register')">Register</button>
+        </div>
+
+        <div id="alert" class="login-alert"></div>
+
+        <!-- Login -->
+        <div id="panel-login">
+            <div style="margin-bottom:14px">
+                <label class="login-label">Email</label>
+                <input id="login-email" type="email" class="login-input" placeholder="your@email.com" autocomplete="email">
+            </div>
+            <div style="margin-bottom:20px">
+                <label class="login-label">Password</label>
+                <input id="login-password" type="password" class="login-input" placeholder="Enter password" autocomplete="current-password">
+            </div>
+            <button class="login-btn" id="btn-login" onclick="doLogin()">
+                <i class="fas fa-sign-in-alt"></i> &nbsp;Login
+            </button>
+        </div>
+
+        <!-- Register -->
+        <div id="panel-register" style="display:none">
+            <div style="margin-bottom:14px">
+                <label class="login-label">Display Name</label>
+                <input id="reg-name" type="text" class="login-input" placeholder="Your name">
+            </div>
+            <div style="margin-bottom:14px">
+                <label class="login-label">Email</label>
+                <input id="reg-email" type="email" class="login-input" placeholder="your@email.com">
+            </div>
+            <div style="margin-bottom:14px">
+                <label class="login-label">Password</label>
+                <input id="reg-password" type="password" class="login-input" placeholder="Min. 6 characters">
+            </div>
+            <div style="margin-bottom:20px">
+                <label class="login-label">Confirm Password</label>
+                <input id="reg-confirm" type="password" class="login-input" placeholder="Repeat password">
+            </div>
+            <button class="login-btn" id="btn-register" onclick="doRegister()">
+                <i class="fas fa-user-plus"></i> &nbsp;Create Account
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(t) {
+            document.getElementById('tab-login').classList.toggle('active', t === 'login');
+            document.getElementById('tab-register').classList.toggle('active', t === 'register');
+            document.getElementById('panel-login').style.display   = t === 'login'    ? '' : 'none';
+            document.getElementById('panel-register').style.display = t === 'register' ? '' : 'none';
+            hideAlert();
+        }
+        function showAlert(msg, type = 'error') {
+            const el = document.getElementById('alert');
+            el.className = 'login-alert ' + type;
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+        function hideAlert() { document.getElementById('alert').style.display = 'none'; }
+
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            if (document.getElementById('panel-login').style.display !== 'none') doLogin();
+            else doRegister();
+        });
+
+        async function doLogin() {
+            const email    = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            if (!email || !password) return showAlert('Please fill in all fields.');
+            const btn = document.getElementById('btn-login');
+            btn.disabled = true; hideAlert();
+            try {
+                const res  = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password }) });
+                const data = await res.json();
+                if (!res.ok) return showAlert(data.detail || 'Login failed.');
+                localStorage.setItem('webchat_token', data.access_token);
+                window.location.href = '/';
+            } catch { showAlert('Network error. Please try again.'); }
+            finally  { btn.disabled = false; }
+        }
+
+        async function doRegister() {
+            const display_name = document.getElementById('reg-name').value.trim();
+            const email        = document.getElementById('reg-email').value.trim();
+            const password     = document.getElementById('reg-password').value;
+            const confirm      = document.getElementById('reg-confirm').value;
+            if (!display_name || !email || !password) return showAlert('All fields are required.');
+            if (password !== confirm) return showAlert('Passwords do not match.');
+            if (password.length < 6)  return showAlert('Password must be at least 6 characters.');
+            const btn = document.getElementById('btn-register');
+            btn.disabled = true; hideAlert();
+            try {
+                const res  = await fetch('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ display_name, email, password }) });
+                const data = await res.json();
+                if (!res.ok) return showAlert(data.detail || 'Registration failed.');
+                showAlert('Account created! Please wait for admin approval before logging in.', 'success');
+                setTimeout(() => switchTab('login'), 3000);
+            } catch { showAlert('Network error. Please try again.'); }
+            finally  { btn.disabled = false; }
+        }
+    </script>
+</body>
+</html>

@@ -1,10 +1,17 @@
 services:
   webchat:
     build: .
-    container_name: costaff-webchat
+    container_name: costaff-channel-webchat
     restart: always
     ports:
       - "18088:80"
+    environment:
+      - ADK_API_BASE_URL=http://costaff-agent-costaff:8080
+      - ADK_APP_NAME=costaff_agent
+      - ADK_SESSION_SERVICE_URI=${ADK_SESSION_SERVICE_URI}
+      - ID_SALT=${ID_SALT}
+      - WEBCHAT_JWT_SECRET=${WEBCHAT_JWT_SECRET}
+      - COSTAFF_PREFERRED_LANGUAGE=${COSTAFF_PREFERRED_LANGUAGE}
     networks:
       - costaff_default
 

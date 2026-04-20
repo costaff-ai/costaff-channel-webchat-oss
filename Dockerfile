@@ -7,19 +7,15 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Static files for nginx
-RUN mkdir -p /app/static
-COPY index.html login.html /app/static/
-COPY css/ /app/static/css/
-COPY js/ /app/static/js/
+# Backend & Static
+COPY . .
+RUN mkdir -p /app/static && \
+    mv index.html login.html /app/static/ && \
+    mv css js /app/static/
 
 # nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default
-
-# Backend
-COPY backend/ /app/backend/
-COPY supervisord.conf /app/supervisord.conf
 
 EXPOSE 80
 

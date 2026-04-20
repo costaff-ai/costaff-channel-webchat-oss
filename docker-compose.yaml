@@ -12,9 +12,16 @@ services:
       - ID_SALT=${ID_SALT}
       - WEBCHAT_JWT_SECRET=${WEBCHAT_JWT_SECRET}
       - COSTAFF_PREFERRED_LANGUAGE=${COSTAFF_PREFERRED_LANGUAGE}
+    volumes:
+      - costaff_data:/app/data
     networks:
       - costaff_default
 
 networks:
   costaff_default:
     external: true
+
+volumes:
+  costaff_data:
+    external: true
+    name: costaff_data

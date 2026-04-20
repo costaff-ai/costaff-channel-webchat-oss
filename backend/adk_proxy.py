@@ -10,7 +10,7 @@ from backend.auth import get_current_user, get_identity
 from backend.config import ADK_API_BASE_URL, ADK_APP_NAME, PREFERRED_LANG
 from backend.database import get_db, WebchatUser, hash_user_id
 
-UPLOADS_DIR = "/app/data/coding_workspace/shared/uploads"
+UPLOADS_DIR = "/app/data/agent-coding/shared/uploads"
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 MIME_MAP = {
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -61,7 +61,7 @@ async def run(
             uploaded_paths.append(att["path"])
 
     if uploaded_paths:
-        rel_paths = [os.path.relpath(p, "/app/data/coding_workspace") for p in uploaded_paths]
+        rel_paths = [os.path.relpath(p, "/app/data/agent-coding") for p in uploaded_paths]
         paths_note = (
             "（使用者上傳了以下檔案：" + ", ".join(uploaded_paths) + "。"
             "coding_agent 可用 read_file 工具以相對路徑存取：" + ", ".join(rel_paths) + "）"

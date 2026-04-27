@@ -50,7 +50,7 @@ FastAPI backend  ──►  CoStaff Agent (A2A / ADK API)
 - **Identity hashing** — real user IDs are never stored; a 16-character SHA-256 hash is used throughout
 - **ADK proxy** — all agent interactions are routed through the backend to the CoStaff Agent
 - **Static frontend served by nginx** — lightweight, no Node.js runtime required in production
-- **Health endpoint** — exposes `GET /.well-known/agent.json` for CoStaff platform registration
+- **Health endpoint** — exposes `GET /.well-known/agent-card.json` for CoStaff platform registration
 
 ---
 

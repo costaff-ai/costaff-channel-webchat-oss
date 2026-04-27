@@ -9,5 +9,5 @@
   "env_optional": [
     "WEBCHAT_PORT"
   ],
-  "health_path": "/.well-known/agent.json"
+  "health_path": "/.well-known/agent-card.json"
 }

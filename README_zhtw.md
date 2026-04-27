@@ -50,7 +50,7 @@ FastAPI 後端  ──►  CoStaff Agent (A2A / ADK API)
 - **身份雜湊保護** — 真實使用者 ID 從不儲存，全程使用 16 字元 SHA-256 雜湊
 - **ADK 代理** — 所有 Agent 互動透過後端路由至 CoStaff Agent
 - **nginx 靜態前端** — 輕量部署，正式環境無需 Node.js 執行環境
-- **健康端點** — 提供 `GET /.well-known/agent.json`，供 CoStaff 平台註冊使用
+- **健康端點** — 提供 `GET /.well-known/agent-card.json`，供 CoStaff 平台註冊使用
 
 ---
 

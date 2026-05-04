@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
 [![Docker Support](https://img.shields.io/badge/docker-supported-blue.svg)](https://www.docker.com/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-latest-009688.svg)](https://fastapi.tiangolo.com/)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 [繁體中文](./README_zhtw.md) | **English**
 
@@ -123,4 +123,4 @@ The container runs both nginx (static frontend) and uvicorn (FastAPI backend) vi
 
 ## License
 
-Distributed under the AGPL v3 License. See `LICENSE` for details.
+Distributed under the Apache 2.0 License. See `LICENSE` for details.

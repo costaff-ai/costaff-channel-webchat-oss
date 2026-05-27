@@ -64,7 +64,7 @@ FastAPI backend  ──►  CoStaff Agent (A2A / ADK API)
 ### Deploy via CoStaff CLI
 
 ```bash
-# From the costaff-channel-webchat directory
+# From the costaff-channel-webchat-oss directory
 costaff channel add webchat --local .
 ```
 
@@ -109,7 +109,7 @@ The WebChat interface will be available at `http://your-server:18088`.
 ## Architecture
 
 ```
-costaff-channel-webchat/
+costaff-channel-webchat-oss/
 ├── backend/
 │   ├── main.py             # FastAPI app — CORS, router registration
 │   ├── auth.py             # Registration, login, JWT auth endpoints

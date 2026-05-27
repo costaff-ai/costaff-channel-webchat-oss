@@ -64,7 +64,7 @@ FastAPI 後端  ──►  CoStaff Agent (A2A / ADK API)
 ### 透過 CoStaff CLI 部署
 
 ```bash
-# 在 costaff-channel-webchat 目錄下執行
+# 在 costaff-channel-webchat-oss 目錄下執行
 costaff channel add webchat --local .
 ```
 
@@ -104,7 +104,7 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 ## 專案架構
 
 ```
-costaff-channel-webchat/
+costaff-channel-webchat-oss/
 ├── backend/
 │   ├── main.py             # FastAPI 應用 — CORS、路由器掛載
 │   ├── auth.py             # 註冊、登入、JWT 驗證端點

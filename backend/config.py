@@ -8,22 +8,24 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Placeholder values used by .env.example. Refusing to boot on these is
-# intentional — silently falling back to a known default secret is
+# Placeholder values shipped in .env.example. Refusing to boot on these
+# is intentional — silently falling back to a known default secret is
 # exactly how OSS deployments leak.
 _PLACEHOLDER_VALUES = {
     "",
     "REPLACE_WITH_A_LONG_RANDOM_SECRET",
     "REPLACE_WITH_A_RANDOM_STRING",
-    # Legacy strings from older .env.template versions.
-    "webchat-default-secret-please-change",
-    "costaff_default_salt",
-    "change-me-to-a-long-random-secret",
-    "change-me-to-a-random-string",
 }
 
 SECRET_KEY = os.getenv("WEBCHAT_JWT_SECRET", "")
 ID_SALT = os.getenv("ID_SALT", "")
+
+# Single-user mode: OSS WebChat seeds exactly one account at boot. No
+# registration endpoint, no multi-user UI. Operators configure these in
+# .env; refusing to start when empty is intentional.
+SINGLE_USER_EMAIL = os.getenv("WEBCHAT_USER_EMAIL", "").strip().lower()
+SINGLE_USER_PASSWORD = os.getenv("WEBCHAT_USER_PASSWORD", "")
+SINGLE_USER_NAME = os.getenv("WEBCHAT_USER_NAME", "User").strip() or "User"
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("WEBCHAT_TOKEN_EXPIRE_MINUTES", "480"))  # 8 hours
@@ -53,6 +55,10 @@ def assert_secrets_configured() -> None:
         bad.append("WEBCHAT_JWT_SECRET")
     if ID_SALT in _PLACEHOLDER_VALUES:
         bad.append("ID_SALT")
+    if not SINGLE_USER_EMAIL or "@" not in SINGLE_USER_EMAIL:
+        bad.append("WEBCHAT_USER_EMAIL")
+    if not SINGLE_USER_PASSWORD or len(SINGLE_USER_PASSWORD) < 6:
+        bad.append("WEBCHAT_USER_PASSWORD")
     if bad:
         sys.stderr.write(
             "\n[FATAL] CoStaff Webchat refuses to start: the following "

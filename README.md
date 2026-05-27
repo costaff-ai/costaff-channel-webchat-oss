@@ -36,7 +36,7 @@ nginx (static frontend)
 FastAPI backend  ──►  CoStaff Agent (A2A / ADK API)
 ```
 
-1. The user opens the WebChat URL in a browser and logs in (or registers)
+1. The single user opens the WebChat URL and logs in with the credentials configured in `.env`
 2. The backend authenticates the user with JWT and maps their identity to a hashed user ID
 3. Chat messages are proxied to the CoStaff Agent via the ADK API
 4. Responses are streamed back to the browser in real time
@@ -46,10 +46,10 @@ FastAPI backend  ──►  CoStaff Agent (A2A / ADK API)
 ## Features
 
 - **Browser-based access** — no Telegram, Discord, or LINE account required
-- **User registration and login** — email + password authentication with bcrypt and JWT
-- **Identity hashing** — real user IDs are never stored; a 16-character SHA-256 hash is used throughout
+- **Single-user mode** — credentials configured via `.env`; no public registration endpoint. For multi-tenant / org-based access, use the enterprise edition
+- **Identity hashing** — real user ID is never stored; a 16-character SHA-256 hash is used throughout
 - **ADK proxy** — all agent interactions are routed through the backend to the CoStaff Agent
-- **Static frontend served by nginx** — lightweight, no Node.js runtime required in production
+- **React frontend (Vite + TS + Tailwind)** served as static assets by nginx — no Node.js runtime in production, just a multi-stage build
 - **Health endpoint** — exposes `GET /.well-known/agent-card.json` for CoStaff platform registration
 
 ---
@@ -96,6 +96,9 @@ The WebChat interface will be available at `http://your-server:18088`.
 |---|---|---|---|
 | `WEBCHAT_JWT_SECRET` | ✅ | — | JWT signing secret. Boot fails with the `.env.example` placeholder. |
 | `ID_SALT` | ✅ | — | Salt for user ID hashing — **must match** the value in your core CoStaff `.env`. |
+| `WEBCHAT_USER_EMAIL` | ✅ | — | Email for the single login account. |
+| `WEBCHAT_USER_PASSWORD` | ✅ | — | Password for the single login account (min 6 chars). Container restart re-syncs the hash. |
+| `WEBCHAT_USER_NAME` | ❌ | `User` | Display name shown in the sidebar. |
 | `ADK_API_BASE_URL` | ❌ | `http://costaff-agent-costaff:8080` | CoStaff Agent ADK API base URL |
 | `ADK_APP_NAME` | ❌ | `costaff_agent` | ADK application name |
 | `ADK_SESSION_SERVICE_URI` | ❌ | `sqlite:///./webchat.db` | Session / user DB URI |
@@ -110,25 +113,50 @@ The WebChat interface will be available at `http://your-server:18088`.
 
 ```
 costaff-channel-webchat-oss/
-├── backend/
-│   ├── main.py             # FastAPI app — CORS, router registration
-│   ├── auth.py             # Registration, login, JWT auth endpoints
-│   ├── adk_proxy.py        # ADK API proxy endpoints
-│   ├── database.py         # SQLAlchemy models and DB setup
-│   └── config.py           # Environment variable loading
-├── index.html              # Main chat UI
-├── login.html              # Login / registration page
-├── js/                     # Frontend JavaScript
-├── css/                    # Frontend styles
-├── nginx.conf              # nginx reverse proxy config
-├── supervisord.conf        # Runs nginx + uvicorn together in one container
-├── Dockerfile
+├── frontend/                   # React + Vite + TypeScript + Tailwind
+│   ├── src/
+│   │   ├── pages/              # Login / Chat
+│   │   ├── components/         # (reserved for future split)
+│   │   ├── hooks/              # useVoiceInput
+│   │   ├── lib/                # api.ts, markdown.ts, types.ts
+│   │   ├── App.tsx             # token-gate routing
+│   │   ├── main.tsx            # React entry
+│   │   └── index.css           # design tokens + Tailwind base
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── tailwind.config.js
+│   └── postcss.config.js
+├── backend/                    # FastAPI
+│   ├── main.py                 # FastAPI app — CORS, router registration
+│   ├── auth.py                 # Registration, login, JWT auth endpoints
+│   ├── adk_proxy.py            # ADK API proxy endpoints
+│   ├── database.py             # SQLAlchemy models and DB setup
+│   └── config.py               # Environment variable loading
+├── nginx.conf                  # nginx reverse proxy config
+├── supervisord.conf            # Runs nginx + uvicorn together in one container
+├── Dockerfile                  # multi-stage: Node build → Python + nginx
 ├── docker-compose.yaml
-├── costaff.channel.json    # CoStaff channel registration manifest
+├── costaff.channel.json        # CoStaff channel registration manifest
 └── requirements.txt
 ```
 
-The container runs both nginx (static frontend) and uvicorn (FastAPI backend) via supervisord, joined to the `costaff_default` Docker network.
+The Docker image is built in two stages: Node builds the React frontend
+to static assets, then the Python image serves them via nginx alongside
+the FastAPI backend (uvicorn). Both processes run together under
+supervisord in a single container, joined to the `costaff_default`
+Docker network.
+
+### Local frontend development
+
+```bash
+cd frontend
+npm install
+npm run dev   # http://localhost:5173, /api/* proxied to localhost:8000
+```
+
+Run the FastAPI backend separately on port 8000 (`uvicorn backend.main:app --reload`) for full-stack local dev.
 
 ---
 

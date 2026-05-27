@@ -1,9 +1,17 @@
 import hashlib
+import uuid
 from datetime import datetime
+import bcrypt
 from sqlalchemy import create_engine, Column, String, Boolean, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-from backend.config import DB_URI, ID_SALT
+from backend.config import (
+    DB_URI,
+    ID_SALT,
+    SINGLE_USER_EMAIL,
+    SINGLE_USER_NAME,
+    SINGLE_USER_PASSWORD,
+)
 
 Base = declarative_base()
 
@@ -54,3 +62,45 @@ def get_db():
 
 def hash_user_id(username: str) -> str:
     return hashlib.sha256(f"{username}{ID_SALT}".encode()).hexdigest()[:16]
+
+
+def bootstrap_single_user() -> None:
+    """Seed the one OSS user from env at startup. Idempotent: re-syncs
+    password + display name to whatever the operator currently has in
+    .env, so rotating the password just needs a container restart."""
+    get_engine()
+    db = _SessionLocal()
+    try:
+        user = db.query(WebchatUser).filter(WebchatUser.email == SINGLE_USER_EMAIL).first()
+        password_hash = bcrypt.hashpw(
+            SINGLE_USER_PASSWORD.encode(), bcrypt.gensalt()
+        ).decode()
+        if user is None:
+            user = WebchatUser(
+                id=str(uuid.uuid4()),
+                username=SINGLE_USER_NAME,
+                email=SINGLE_USER_EMAIL,
+                password_hash=password_hash,
+                is_active=True,
+            )
+            db.add(user)
+        else:
+            user.username = SINGLE_USER_NAME
+            user.password_hash = password_hash
+            user.is_active = True
+
+        hashed_id = hash_user_id(SINGLE_USER_EMAIL)
+        session_id = f"web_{hashed_id}"
+        ident = db.query(IdentityMap).filter(IdentityMap.session_id == session_id).first()
+        if ident is None:
+            db.add(IdentityMap(
+                session_id=session_id,
+                hashed_id=hashed_id,
+                real_id=SINGLE_USER_EMAIL,
+                is_approved=True,
+            ))
+        else:
+            ident.is_approved = True
+        db.commit()
+    finally:
+        db.close()

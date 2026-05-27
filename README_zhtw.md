@@ -36,7 +36,7 @@ nginx（靜態前端）
 FastAPI 後端  ──►  CoStaff Agent (A2A / ADK API)
 ```
 
-1. 使用者在瀏覽器開啟 WebChat 網址並登入（或註冊）
+1. 單一使用者開啟 WebChat 網址，用 `.env` 設定的帳密登入
 2. 後端使用 JWT 驗證身份，並將使用者 ID 雜湊對應
 3. 對話訊息透過後端代理轉發至 CoStaff Agent ADK API
 4. Agent 回應即時串流回瀏覽器
@@ -46,10 +46,10 @@ FastAPI 後端  ──►  CoStaff Agent (A2A / ADK API)
 ## 功能特色
 
 - **瀏覽器直接存取** — 不需要 Telegram、Discord 或 LINE 帳號
-- **使用者註冊與登入** — Email + 密碼認證，採用 bcrypt 雜湊與 JWT
+- **單一使用者模式** — 帳密由 `.env` 設定，無公開註冊端點。需要多租戶 / 組織級存取請改用 enterprise 版
 - **身份雜湊保護** — 真實使用者 ID 從不儲存，全程使用 16 字元 SHA-256 雜湊
 - **ADK 代理** — 所有 Agent 互動透過後端路由至 CoStaff Agent
-- **nginx 靜態前端** — 輕量部署，正式環境無需 Node.js 執行環境
+- **React 前端（Vite + TS + Tailwind）** — 多階段建置產出靜態檔案後由 nginx 提供，正式環境無需 Node.js runtime
 - **健康端點** — 提供 `GET /.well-known/agent-card.json`，供 CoStaff 平台註冊使用
 
 ---
@@ -91,6 +91,9 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 |---|---|---|---|
 | `WEBCHAT_JWT_SECRET` | ✅ | — | JWT 簽名金鑰。保留 `.env.example` placeholder 時後端會拒絕啟動 |
 | `ID_SALT` | ✅ | — | 使用者 ID 雜湊鹽值 — **必須等同** core CoStaff `.env` 的同名變數 |
+| `WEBCHAT_USER_EMAIL` | ✅ | — | 唯一登入帳號的 email |
+| `WEBCHAT_USER_PASSWORD` | ✅ | — | 唯一登入帳號的密碼（≥ 6 字元）。重啟容器會自動同步新密碼 |
+| `WEBCHAT_USER_NAME` | ❌ | `User` | sidebar 顯示的暱稱 |
 | `ADK_API_BASE_URL` | ❌ | `http://costaff-agent-costaff:8080` | CoStaff Agent ADK API 位址 |
 | `ADK_APP_NAME` | ❌ | `costaff_agent` | ADK 應用程式名稱 |
 | `ADK_SESSION_SERVICE_URI` | ❌ | `sqlite:///./webchat.db` | Session / 使用者 DB URI |
@@ -105,25 +108,48 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 ```
 costaff-channel-webchat-oss/
-├── backend/
-│   ├── main.py             # FastAPI 應用 — CORS、路由器掛載
-│   ├── auth.py             # 註冊、登入、JWT 驗證端點
-│   ├── adk_proxy.py        # ADK API 代理端點
-│   ├── database.py         # SQLAlchemy 資料模型與 DB 初始化
-│   └── config.py           # 環境變數載入
-├── index.html              # 主對話介面
-├── login.html              # 登入 / 註冊頁面
-├── js/                     # 前端 JavaScript
-├── css/                    # 前端樣式
-├── nginx.conf              # nginx 反向代理設定
-├── supervisord.conf        # 同一容器中同時執行 nginx + uvicorn
-├── Dockerfile
+├── frontend/                   # React + Vite + TypeScript + Tailwind
+│   ├── src/
+│   │   ├── pages/              # Login / Chat
+│   │   ├── components/         # （預留拆分用）
+│   │   ├── hooks/              # useVoiceInput
+│   │   ├── lib/                # api.ts, markdown.ts, types.ts
+│   │   ├── App.tsx             # 依 token 切換頁面
+│   │   ├── main.tsx            # React 進入點
+│   │   └── index.css           # 設計變數 + Tailwind base
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── tailwind.config.js
+│   └── postcss.config.js
+├── backend/                    # FastAPI
+│   ├── main.py                 # FastAPI 應用 — CORS、路由器掛載
+│   ├── auth.py                 # 註冊、登入、JWT 驗證端點
+│   ├── adk_proxy.py            # ADK API 代理端點
+│   ├── database.py             # SQLAlchemy 資料模型與 DB 初始化
+│   └── config.py               # 環境變數載入
+├── nginx.conf                  # nginx 反向代理設定
+├── supervisord.conf            # 同一容器中同時執行 nginx + uvicorn
+├── Dockerfile                  # 多階段：Node build → Python + nginx
 ├── docker-compose.yaml
-├── costaff.channel.json    # CoStaff 頻道註冊描述檔
+├── costaff.channel.json        # CoStaff 頻道註冊描述檔
 └── requirements.txt
 ```
 
-容器透過 supervisord 同時執行 nginx（靜態前端）與 uvicorn（FastAPI 後端），加入 `costaff_default` Docker 網路。
+Docker image 採兩階段建置：Node 階段把 React 前端建成靜態資源，Python
+階段再用 nginx 提供前端、用 uvicorn 跑 FastAPI 後端，兩者透過
+supervisord 在同一容器執行，加入 `costaff_default` Docker 網路。
+
+### 本地前端開發
+
+```bash
+cd frontend
+npm install
+npm run dev   # http://localhost:5173，/api/* 會 proxy 到 localhost:8000
+```
+
+後端另起 port 8000（`uvicorn backend.main:app --reload`）即可全 stack 本地開發。
 
 ---
 

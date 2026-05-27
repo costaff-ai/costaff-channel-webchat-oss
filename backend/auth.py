@@ -1,4 +1,3 @@
-import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -9,25 +8,15 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
-from backend.database import get_db, get_engine, WebchatUser, IdentityMap, hash_user_id
+from backend.database import get_db, WebchatUser, IdentityMap, hash_user_id
 
 router = APIRouter(prefix="/api/auth")
 bearer = HTTPBearer()
 
 
-def _hash_pw(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
 def _verify_pw(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
-
-# ---------- Pydantic models ----------
-
-class RegisterRequest(BaseModel):
-    display_name: str
-    email: str
-    password: str
 
 class LoginRequest(BaseModel):
     email: str
@@ -71,41 +60,6 @@ def get_identity(user: WebchatUser, db: Session) -> IdentityMap:
 
 
 # ---------- Routes ----------
-
-@router.post("/register")
-def register(req: RegisterRequest, db: Session = Depends(get_db)):
-    if len(req.display_name.strip()) < 2:
-        raise HTTPException(status_code=400, detail="Display name must be at least 2 characters")
-    if len(req.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
-    if "@" not in req.email:
-        raise HTTPException(status_code=400, detail="Invalid email address")
-
-    if db.query(WebchatUser).filter(WebchatUser.email == req.email).first():
-        raise HTTPException(status_code=409, detail="Email already registered")
-
-    user = WebchatUser(
-        id=str(uuid.uuid4()),
-        username=req.display_name.strip(),
-        email=req.email.lower().strip(),
-        password_hash=_hash_pw(req.password),
-    )
-    db.add(user)
-
-    # Register in identity_maps (pending approval)
-    hashed_id = hash_user_id(req.email.lower().strip())
-    session_id = f"web_{hashed_id}"
-    if not db.query(IdentityMap).filter(IdentityMap.session_id == session_id).first():
-        db.add(IdentityMap(
-            session_id=session_id,
-            hashed_id=hashed_id,
-            real_id=req.email.lower().strip(),
-            is_approved=False,
-        ))
-
-    db.commit()
-    return {"status": "registered", "message": "Account created. Waiting for admin approval."}
-
 
 @router.post("/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):

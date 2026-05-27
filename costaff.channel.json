@@ -1,15 +1,18 @@
 {
   "name": "webchat",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha-1",
   "description": "CoStaff 官方網頁對話介面，提供無需通訊軟體的直接瀏覽器存取功能。",
   "a2a_service": "webchat",
   "port": 80,
   "public_port": 18088,
   "env_required": [
     "WEBCHAT_JWT_SECRET",
-    "ID_SALT"
+    "ID_SALT",
+    "WEBCHAT_USER_EMAIL",
+    "WEBCHAT_USER_PASSWORD"
   ],
   "env_optional": [
+    "WEBCHAT_USER_NAME",
     "WEBCHAT_PORT",
     "WEBCHAT_TOKEN_EXPIRE_MINUTES",
     "WEBCHAT_ALLOWED_ORIGINS",

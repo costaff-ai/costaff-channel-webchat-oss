@@ -5,9 +5,18 @@
   "a2a_service": "webchat",
   "port": 80,
   "public_port": 18088,
-  "env_required": [],
+  "env_required": [
+    "WEBCHAT_JWT_SECRET",
+    "ID_SALT"
+  ],
   "env_optional": [
-    "WEBCHAT_PORT"
+    "WEBCHAT_PORT",
+    "WEBCHAT_TOKEN_EXPIRE_MINUTES",
+    "WEBCHAT_ALLOWED_ORIGINS",
+    "ADK_API_BASE_URL",
+    "ADK_APP_NAME",
+    "ADK_SESSION_SERVICE_URI",
+    "COSTAFF_PREFERRED_LANGUAGE"
   ],
   "health_path": "/.well-known/agent-card.json"
 }

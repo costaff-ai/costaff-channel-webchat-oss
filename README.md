@@ -64,17 +64,26 @@ FastAPI backend  ──►  CoStaff Agent (A2A / ADK API)
 ### Deploy via CoStaff CLI
 
 ```bash
-# From within the costaff-channel-webchat directory
-cst channel deploy --local .
+# From the costaff-channel-webchat directory
+costaff channel add webchat --local .
 ```
 
-CoStaff reads `costaff.channel.json`, builds the container, and connects it to the platform network automatically.
+CoStaff reads `costaff.channel.json`, prompts you for the values listed
+in `env_required` (`WEBCHAT_JWT_SECRET`, `ID_SALT`), builds the
+container, and connects it to the platform network automatically.
 
 ### Manual Docker Compose
 
 ```bash
-cp .env.example .env   # fill in your values
+cp .env.example .env   # then edit .env and fill in your own values
 docker compose up -d --build
+```
+
+The backend will refuse to start while `WEBCHAT_JWT_SECRET` or `ID_SALT`
+still match the placeholder strings — generate strong values with:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
 The WebChat interface will be available at `http://your-server:18088`.
@@ -85,11 +94,13 @@ The WebChat interface will be available at `http://your-server:18088`.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
+| `WEBCHAT_JWT_SECRET` | ✅ | — | JWT signing secret. Boot fails with the `.env.example` placeholder. |
+| `ID_SALT` | ✅ | — | Salt for user ID hashing — **must match** the value in your core CoStaff `.env`. |
 | `ADK_API_BASE_URL` | ❌ | `http://costaff-agent-costaff:8080` | CoStaff Agent ADK API base URL |
 | `ADK_APP_NAME` | ❌ | `costaff_agent` | ADK application name |
-| `ADK_SESSION_SERVICE_URI` | ❌ | — | Session service URI for ADK |
-| `ID_SALT` | ❌ | — | Salt for user ID hashing (set a secret value in production) |
-| `WEBCHAT_JWT_SECRET` | ❌ | — | JWT signing secret (set a strong secret in production) |
+| `ADK_SESSION_SERVICE_URI` | ❌ | `sqlite:///./webchat.db` | Session / user DB URI |
+| `WEBCHAT_TOKEN_EXPIRE_MINUTES` | ❌ | `480` | Session token TTL (minutes) |
+| `WEBCHAT_ALLOWED_ORIGINS` | ❌ | `*` | Comma-separated CORS origins. Set to your frontend domain(s) in production. |
 | `COSTAFF_PREFERRED_LANGUAGE` | ❌ | `Traditional Chinese (繁體中文)` | Language for agent responses |
 | `WEBCHAT_PORT` | ❌ | `80` | Internal nginx port |
 

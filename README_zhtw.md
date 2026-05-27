@@ -65,19 +65,23 @@ FastAPI 後端  ──►  CoStaff Agent (A2A / ADK API)
 
 ```bash
 # 在 costaff-channel-webchat 目錄下執行
-cst channel deploy --local .
+costaff channel add webchat --local .
 ```
 
-CoStaff 會讀取 `costaff.channel.json`，自動建置容器並連接至 platform 網路。
+CoStaff 會讀取 `costaff.channel.json`,依 `env_required`(`WEBCHAT_JWT_SECRET`、`ID_SALT`)依序提示您填寫,然後自動建置容器並連接至 platform 網路。
 
 ### 手動 Docker Compose
 
 ```bash
-cp .env.example .env   # 填入您的設定值
+cp .env.example .env   # 編輯 .env,把預設值換成您自己的
 docker compose up -d --build
 ```
 
-WebChat 介面將可於 `http://your-server:18088` 存取。
+`WEBCHAT_JWT_SECRET` 與 `ID_SALT` 若仍保留 `.env.example` 內的 placeholder,後端會拒絕啟動。產生強隨機字串:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
 
 ---
 
@@ -85,11 +89,13 @@ WebChat 介面將可於 `http://your-server:18088` 存取。
 
 | 變數名稱 | 必填 | 預設值 | 說明 |
 |---|---|---|---|
+| `WEBCHAT_JWT_SECRET` | ✅ | — | JWT 簽名金鑰。保留 `.env.example` placeholder 時後端會拒絕啟動 |
+| `ID_SALT` | ✅ | — | 使用者 ID 雜湊鹽值 — **必須等同** core CoStaff `.env` 的同名變數 |
 | `ADK_API_BASE_URL` | ❌ | `http://costaff-agent-costaff:8080` | CoStaff Agent ADK API 位址 |
 | `ADK_APP_NAME` | ❌ | `costaff_agent` | ADK 應用程式名稱 |
-| `ADK_SESSION_SERVICE_URI` | ❌ | — | ADK Session 服務 URI |
-| `ID_SALT` | ❌ | — | 使用者 ID 雜湊鹽值（正式環境請設定機密值） |
-| `WEBCHAT_JWT_SECRET` | ❌ | — | JWT 簽名金鑰（正式環境請設定強密碼） |
+| `ADK_SESSION_SERVICE_URI` | ❌ | `sqlite:///./webchat.db` | Session / 使用者 DB URI |
+| `WEBCHAT_TOKEN_EXPIRE_MINUTES` | ❌ | `480` | Session token TTL(分鐘) |
+| `WEBCHAT_ALLOWED_ORIGINS` | ❌ | `*` | CORS 允許來源,逗號分隔。正式環境請設為您前端網域 |
 | `COSTAFF_PREFERRED_LANGUAGE` | ❌ | `Traditional Chinese (繁體中文)` | Agent 回應語言 |
 | `WEBCHAT_PORT` | ❌ | `80` | nginx 內部監聽 port |
 

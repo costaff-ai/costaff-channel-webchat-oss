@@ -165,6 +165,15 @@ export default function ChatPage({ onLogout }: ChatPageProps) {
       const data = await runAgent(prompt, attachments);
       if (thinkingId !== null) removeItem(thinkingId);
       appendItem("agent", formatReply(data.reply || "⚠️ No response."));
+      if (data.files?.length) {
+        const links = data.files
+          .map(
+            (f) =>
+              `<a href="${escapeHtml(f.url)}" download="${escapeHtml(f.filename)}" target="_blank" rel="noopener">📎 ${escapeHtml(f.filename)}</a>`,
+          )
+          .join("<br>");
+        appendItem("agent", links);
+      }
     } catch (err) {
       if (thinkingId !== null) removeItem(thinkingId);
       if (err instanceof AuthError) return onLogout();

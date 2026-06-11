@@ -1,31 +1,107 @@
-import os
-import io
+"""ADK proxy — chat requests in, agent replies (and file links) out.
+
+Built on the shared `costaff-channel-chatbot` library so WebChat gets
+the same conversation semantics as every other channel:
+
+  - run_adk_prompt: per-session lock (no interleaved /run calls), retry
+    with backoff, empty-reply nudge, 30-minute timeout for long agent
+    tasks, shared HTTP client.
+  - response helpers: file references in the agent reply are resolved
+    against the shared volume, replaced with the filename in the text,
+    and returned as signed download links (see backend/file_links.py).
+  - RateLimiter: same env knobs (RATE_LIMIT_MAX / RATE_LIMIT_WINDOW).
+
+WebChat is request/response (no push), so it uses the library's client
+and response layers directly rather than the ChannelRuntime delivery
+loop, which assumes an adapter it can push messages through.
+"""
 import base64
-import httpx
+import logging
+import os
+
 from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File
-from fastapi.responses import Response
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from backend.auth import get_current_user, get_identity
-from backend.config import ADK_API_BASE_URL, ADK_APP_NAME, PREFERRED_LANG
-from backend.database import get_db, WebchatUser, hash_user_id
+from costaff_channel_chatbot import (
+    RateLimiter,
+    delete_session,
+    parse_result_envelope,
+    run_adk_prompt,
+)
+from costaff_channel_chatbot.response import (
+    DATA_ROOT,
+    extract_path_candidates,
+    protect_code_blocks,
+    resolve_path,
+    restore_code_blocks,
+    rewrite_with_hint,
+    strip_leftover_hints,
+)
 
-UPLOADS_DIR = "/app/data/agent-coding/shared/uploads"
+from backend.auth import get_current_user, get_identity
+from backend.config import ADK_APP_NAME
+from backend.database import get_db, WebchatUser, hash_user_id
+from backend.file_links import make_token, verify_token
+
+logger = logging.getLogger(__name__)
+
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 MIME_MAP = {
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
     ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp",
 }
 
+ATTACHMENT_HINT = "（詳見附件）"
+
 router = APIRouter()
 
-TIMEOUT = 300.0
+_rate = RateLimiter()
 
 
 def _require_approved(user: WebchatUser, db: Session):
     identity = get_identity(user, db)
     if not identity or not identity.is_approved:
         raise HTTPException(status_code=403, detail="Account pending admin approval")
+
+
+def _uploads_dir(hashed_id: str) -> str:
+    # Per-user subdirectory on the shared volume — mirrors the channel
+    # runtime so identical filenames from two users never collide.
+    return os.path.join(DATA_ROOT, "uploads", hashed_id)
+
+
+def _extract_files(final_res: str) -> tuple[str, list[dict]]:
+    """Pull file references out of the agent reply.
+
+    Returns (clean_text, files) where files is a list of
+    {"filename", "url"} download descriptors. Mirrors
+    ChannelRuntime.deliver_response: a structured RESULT envelope's
+    `files:` list is trusted; otherwise regex extraction."""
+    env = parse_result_envelope(final_res)
+    if env.structured and env.files:
+        candidates = env.files
+        base_text = env.summary or final_res
+    else:
+        candidates = extract_path_candidates(final_res)
+        base_text = final_res
+
+    protected, code_blocks = protect_code_blocks(base_text)
+    files: list[dict] = []
+    for raw in candidates:
+        resolved = resolve_path(raw, wait_seconds=2.0)
+        if not resolved:
+            logger.warning(f"Failed to resolve file reference: {raw}")
+            continue
+        name = os.path.basename(resolved)
+        protected = rewrite_with_hint(protected, raw, name)
+        token = make_token(resolved)
+        if token:
+            files.append({"filename": name, "url": f"/api/files/{token}"})
+
+    clean = restore_code_blocks(protected, code_blocks)
+    clean = strip_leftover_hints(clean, ATTACHMENT_HINT)
+    return clean or final_res, files
 
 
 @router.post("/api/run")
@@ -40,14 +116,9 @@ async def run(
     hashed_id = hash_user_id(current_user.email)
     session_id = f"web_{hashed_id}"
 
-    # Ensure session exists
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        await client.post(
-            f"{ADK_API_BASE_URL}/apps/{ADK_APP_NAME}/users/{hashed_id}/sessions",
-            json={"sessionId": session_id, "state": {}},
-        )
+    if _rate.exceeded(hashed_id):
+        raise HTTPException(status_code=429, detail="Too many requests, slow down")
 
-    # Build ADK-compliant payload
     user_text = body.get("text", "")
     attachments = body.get("attachments", [])  # list of {type, mimeType?, data?, path?, filename}
 
@@ -61,60 +132,36 @@ async def run(
             uploaded_paths.append(att["path"])
 
     if uploaded_paths:
-        rel_paths = [os.path.relpath(p, "/app/data/agent-coding") for p in uploaded_paths]
         paths_note = (
-            "（使用者上傳了以下檔案：" + ", ".join(uploaded_paths) + "。"
-            "coding_agent 可用 read_file 工具以相對路徑存取：" + ", ".join(rel_paths) + "）"
+            f"（使用者上傳了檔案，已存放在 SHARED_DIR/uploads/：{', '.join(uploaded_paths)}）"
         )
         parts[0]["text"] += " " + paths_note
 
-    payload = {
-        "appName": ADK_APP_NAME,
-        "userId": hashed_id,
-        "sessionId": session_id,
-        "newMessage": {
-            "role": "user",
-            "parts": parts,
-        },
-    }
+    # Session creation, locking, retries and the empty-reply nudge all
+    # live inside run_adk_prompt.
+    reply = await run_adk_prompt(ADK_APP_NAME, hashed_id, session_id, parts=parts)
 
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        resp = await client.post(f"{ADK_API_BASE_URL}/run", json=payload)
+    clean, files = _extract_files(reply)
+    return {"reply": clean, "files": files}
 
-    if resp.status_code != 200:
-        raise HTTPException(status_code=resp.status_code, detail="ADK error")
 
-    events = resp.json()
-    reply = ""
-    for event in reversed(events):
-        if event.get("author") != "user" and "content" in event:
-            texts = [p.get("text", "") for p in event["content"].get("parts", []) if "text" in p]
-            if texts:
-                reply = "".join(texts).strip()
-                break
+@router.get("/api/files/{token}")
+async def download_file(token: str):
+    """Serve a file referenced by a signed token minted in _extract_files.
 
-    if not reply:
-        # Nudge agent to summarize
-        nudge = {
-            "appName": ADK_APP_NAME,
-            "userId": hashed_id,
-            "sessionId": session_id,
-            "newMessage": {
-                "role": "user",
-                "parts": [{"text": f"任務已完成，請用{PREFERRED_LANG}向用戶說明結果摘要。"}],
-            },
-        }
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            resp2 = await client.post(f"{ADK_API_BASE_URL}/run", json=nudge)
-        if resp2.status_code == 200:
-            for event in reversed(resp2.json()):
-                if event.get("author") != "user" and "content" in event:
-                    texts = [p.get("text", "") for p in event["content"].get("parts", []) if "text" in p]
-                    if texts:
-                        reply = "".join(texts).strip()
-                        break
-
-    return {"reply": reply or "⚠️ 無法取得 Agent 回應。"}
+    The token alone authorizes the download (it binds path + expiry and
+    is HMAC-signed). Defense-in-depth: the path must also live under the
+    shared data root."""
+    path = verify_token(token)
+    if not path:
+        raise HTTPException(status_code=403, detail="Invalid or expired link")
+    real = os.path.realpath(path)
+    allowed_root = os.path.realpath(os.getenv("WEBCHAT_FILE_ROOT", "/app/data"))
+    if not real.startswith(allowed_root.rstrip("/") + "/"):
+        raise HTTPException(status_code=403, detail="Forbidden path")
+    if not os.path.isfile(real):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(real, filename=os.path.basename(real))
 
 
 @router.post("/api/upload")
@@ -134,9 +181,11 @@ async def upload_file(
         data = base64.b64encode(content).decode()
         return {"type": "image", "mimeType": mime, "data": data, "filename": fname}
     else:
-        os.makedirs(UPLOADS_DIR, exist_ok=True)
+        hashed_id = hash_user_id(current_user.email)
+        uploads_dir = _uploads_dir(hashed_id)
+        os.makedirs(uploads_dir, exist_ok=True)
         safe_name = fname.replace("/", "_").replace("..", "_")
-        fpath = os.path.join(UPLOADS_DIR, safe_name)
+        fpath = os.path.join(uploads_dir, safe_name)
         with open(fpath, "wb") as f:
             f.write(content)
         return {"type": "document", "path": fpath, "filename": fname}
@@ -150,8 +199,5 @@ async def reset_session(
     _require_approved(current_user, db)
     hashed_id = hash_user_id(current_user.email)
     session_id = f"web_{hashed_id}"
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        await client.delete(
-            f"{ADK_API_BASE_URL}/apps/{ADK_APP_NAME}/users/{hashed_id}/sessions/{session_id}"
-        )
+    await delete_session(ADK_APP_NAME, hashed_id, session_id)
     return {"status": "reset"}

@@ -12,6 +12,9 @@ services:
       - ID_SALT=${ID_SALT}
       - WEBCHAT_JWT_SECRET=${WEBCHAT_JWT_SECRET}
       - COSTAFF_PREFERRED_LANGUAGE=${COSTAFF_PREFERRED_LANGUAGE}
+      # Uploads + file resolution live on the shared workspace (same as
+      # the bot channels).
+      - SHARED_DIR=/app/data/shared
     volumes:
       - costaff_data:/app/data
     networks:

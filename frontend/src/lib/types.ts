@@ -13,8 +13,14 @@ export interface Attachment {
   path?: string;
 }
 
+export interface AgentFile {
+  filename: string;
+  url: string; // signed download link — works as a plain <a href>
+}
+
 export interface RunResponse {
   reply: string;
+  files?: AgentFile[];
 }
 
 export interface LoginResponse {

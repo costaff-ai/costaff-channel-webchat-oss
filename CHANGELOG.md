@@ -6,6 +6,13 @@ All notable changes to this project are recorded here. Format follows
 
 ## [Unreleased]
 
+## [0.1.0-alpha-2] - 2026-06-14
+
+### Changed
+
+- Adopted the shared `costaff-channel-chatbot` library.
+- Version bumped to `0.1.0-alpha-2`.
+
 ## [0.1.0-alpha-1] - 2026-05-27
 
 First tagged pre-release. Bundles the pre-open-source hardening, the

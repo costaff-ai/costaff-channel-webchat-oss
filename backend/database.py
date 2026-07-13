@@ -60,6 +60,13 @@ def get_db():
         db.close()
 
 
+def new_session():
+    """A plain Session for callers outside FastAPI's dependency system
+    (e.g. the SSE stream endpoint). Caller owns .close()."""
+    get_engine()
+    return _SessionLocal()
+
+
 def hash_user_id(username: str) -> str:
     return hashlib.sha256(f"{username}{ID_SALT}".encode()).hexdigest()[:16]
 

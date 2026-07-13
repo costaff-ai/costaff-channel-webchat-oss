@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AuthError,
   fetchMe,
+  getToken,
   resetSession,
   runAgent,
   uploadFile,
@@ -84,6 +85,38 @@ export default function ChatPage({ onLogout }: ChatPageProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Async push stream (SSE) ───────────────────────────────────────────
+  // Background task results the Manager said it would "notify" about are
+  // delivered here — WebChat is otherwise request/response, so without this
+  // an async result would have nowhere to land.
+  useEffect(() => {
+    if (!me) return;
+    const token = getToken();
+    if (!token) return;
+    const es = new EventSource(`/api/stream?token=${encodeURIComponent(token)}`);
+    es.onmessage = (ev) => {
+      let frame: { type?: string; text?: string; name?: string; url?: string; agent?: string; status?: string };
+      try {
+        frame = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      if (frame.type === "agent_text") {
+        if (frame.text) appendItem("agent", formatReply(frame.text));
+      } else if (frame.type === "agent_file" && frame.url) {
+        appendItem(
+          "agent",
+          `<a href="${escapeHtml(frame.url)}" download="${escapeHtml(frame.name ?? "file")}" target="_blank" rel="noopener">📎 ${escapeHtml(frame.name ?? "file")}</a>`,
+        );
+      } else if (frame.type === "agent_progress" && frame.text) {
+        const who = frame.agent ? `${escapeHtml(frame.agent)}: ` : "";
+        appendItem("system", `⚙️ ${who}${escapeHtml(frame.text)}`);
+      }
+    };
+    return () => es.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me]);
 
   // ── Auto-scroll on new message ────────────────────────────────────────
   useLayoutEffect(() => {

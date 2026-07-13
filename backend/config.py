@@ -20,6 +20,14 @@ _PLACEHOLDER_VALUES = {
 SECRET_KEY = os.getenv("WEBCHAT_JWT_SECRET", "")
 ID_SALT = os.getenv("ID_SALT", "")
 
+# Shared secret for the Manager -> channel async push (/api/internal/push).
+# Must equal the core's WEBCHAT_PUSH_SECRET (fallback: the legacy
+# WEBCHAT_ENT_INTERNAL_SECRET). Empty = the push endpoint is closed (503).
+INTERNAL_SECRET = (
+    os.getenv("WEBCHAT_INTERNAL_SECRET")
+    or os.getenv("WEBCHAT_ENT_INTERNAL_SECRET", "")
+).strip()
+
 # Single-user mode: OSS WebChat seeds exactly one account at boot. No
 # registration endpoint, no multi-user UI. Operators configure these in
 # .env; refusing to start when empty is intentional.

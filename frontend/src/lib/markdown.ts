@@ -30,11 +30,28 @@ function reviveSafeTags(escaped: string): string {
 }
 
 export function formatReply(text: string): string {
-  const escaped = reviveSafeTags(escapeHtml(text));
-  return escaped
-    .replace(/```([\s\S]*?)```/g, "<pre><code>$1</code></pre>")
+  // Escape first, then pull fenced code blocks OUT before any inline rule or
+  // the newline->br pass runs. Inside a code block newlines must stay literal:
+  // a <br> there breaks copy-paste and, being inline, makes each line paint its
+  // own background box (the reported "broken" look). Swap each block for an
+  // inert placeholder, format the prose around it, then splice the blocks back.
+  const escaped = escapeHtml(text);
+  const blocks: string[] = [];
+  const withoutCode = escaped.replace(
+    /```[a-zA-Z0-9_+-]*\n?([\s\S]*?)```/g,
+    (_m, code: string) => {
+      blocks.push(`<pre><code>${code.replace(/\n$/, "")}</code></pre>`);
+      // Sentinel that no inline rule matches and real prose won't contain, so
+      // it survives formatting and never collides with text like "vitamin B12".
+      return `@@CODEBLOCK${blocks.length - 1}@@`;
+    },
+  );
+
+  const formatted = reviveSafeTags(withoutCode)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
     .replace(/\n/g, "<br>");
+
+  return formatted.replace(/@@CODEBLOCK(\d+)@@/g, (_m, i) => blocks[Number(i)]);
 }

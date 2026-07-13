@@ -370,6 +370,23 @@ export default function ChatPage({ onLogout }: ChatPageProps) {
             >
               CoStaff
             </span>
+            {/* Edition badge — mirrors Enterprise's, so the two builds are
+                instantly distinguishable at a glance. */}
+            <span
+              style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: "0.62rem",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                color: "var(--primary)",
+                border: "1px solid var(--primary)",
+                borderRadius: 6,
+                padding: "1px 6px",
+                lineHeight: 1.4,
+              }}
+            >
+              OSS
+            </span>
           </div>
         </div>
 

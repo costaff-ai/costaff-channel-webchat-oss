@@ -316,6 +316,9 @@ export default function ChatPage({ onLogout }: ChatPageProps) {
   }
 
   function onTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // IME 組字中（注音/拼音/日韓）按 Enter 是「選字確認」，不是送出。
+    // isComposing 為組字狀態；keyCode 229 是部分瀏覽器在 IME 未結束時的特徵值。
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (slashOpen) {
       const matches = slashMatches;
       if (e.key === "ArrowDown") {

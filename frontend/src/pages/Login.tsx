@@ -37,6 +37,8 @@ export default function LoginPage({ onAuthed }: LoginPageProps) {
 
   useEffect(() => {
     function onKey(ev: KeyboardEvent) {
+      // 別在 IME 組字中（注音選字的 Enter）就觸發登入
+      if (ev.isComposing || ev.keyCode === 229) return;
       if (ev.key === "Enter") doLogin();
     }
     document.addEventListener("keydown", onKey);

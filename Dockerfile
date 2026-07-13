@@ -7,7 +7,9 @@ RUN npm run build
 
 FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y nginx supervisor && rm -rf /var/lib/apt/lists/*
+# git is needed at build time: requirements.txt installs the shared
+# costaff-channel-chatbot library from a git+https URL.
+RUN apt-get update && apt-get install -y nginx supervisor git && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

@@ -47,6 +47,19 @@ export async function fetchMe(): Promise<Me> {
   return jsonOrThrow<Me>(res);
 }
 
+export interface HistoryItem {
+  role: "user" | "agent" | "file" | "system";
+  text?: string;
+  filename?: string;
+  url?: string;
+}
+
+export async function fetchHistory(): Promise<HistoryItem[]> {
+  const res = await fetch("/api/history", { headers: authHeaders() });
+  const data = await jsonOrThrow<{ items: HistoryItem[] }>(res);
+  return data.items ?? [];
+}
+
 export async function runAgent(
   text: string,
   attachments: Attachment[],

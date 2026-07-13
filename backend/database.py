@@ -2,7 +2,7 @@ import hashlib
 import uuid
 from datetime import datetime
 import bcrypt
-from sqlalchemy import create_engine, Column, String, Boolean, DateTime
+from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Integer, Text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from backend.config import (
@@ -36,6 +36,24 @@ class IdentityMap(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class WebchatMessage(Base):
+    """One line of the user's single, persistent conversation.
+
+    OSS WebChat is single-user and single-thread — there is exactly one
+    conversation per account and no session switching — so a flat row per
+    message keyed by hashed_id is all that's needed to restore the
+    transcript on reload. `role`: 'user' | 'agent' | 'file'. File rows carry
+    the on-disk path so a fresh download token can be minted at load time."""
+    __tablename__ = "webchat_oss_messages"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    hashed_id = Column(String, index=True, nullable=False)
+    role = Column(String(16), nullable=False)
+    text = Column(Text, nullable=True)
+    file_name = Column(String, nullable=True)
+    file_path = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 _engine = None
 _SessionLocal = None
 
@@ -45,8 +63,9 @@ def get_engine():
     if _engine is None:
         uri = DB_URI.replace("postgresql+asyncpg://", "postgresql://")
         _engine = create_engine(uri)
-        # Only create webchat_users — identity_maps already exists
+        # Only create OSS-owned tables — identity_maps already exists (core).
         WebchatUser.__table__.create(_engine, checkfirst=True)
+        WebchatMessage.__table__.create(_engine, checkfirst=True)
         _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
     return _engine
 
@@ -69,6 +88,51 @@ def new_session():
 
 def hash_user_id(username: str) -> str:
     return hashlib.sha256(f"{username}{ID_SALT}".encode()).hexdigest()[:16]
+
+
+def persist_message(hashed_id: str, role: str, *, text: str | None = None,
+                    file_name: str | None = None, file_path: str | None = None) -> None:
+    """Append one message to the user's persistent transcript. Best-effort:
+    a persistence hiccup must never break the live chat response."""
+    db = new_session()
+    try:
+        db.add(WebchatMessage(
+            hashed_id=hashed_id, role=role, text=text,
+            file_name=file_name, file_path=file_path,
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+def load_history(hashed_id: str, limit: int = 1000) -> list["WebchatMessage"]:
+    """The user's whole conversation, oldest first (id is monotonic)."""
+    db = new_session()
+    try:
+        rows = (
+            db.query(WebchatMessage)
+            .filter(WebchatMessage.hashed_id == hashed_id)
+            .order_by(WebchatMessage.id.asc())
+            .limit(limit)
+            .all()
+        )
+        db.expunge_all()
+        return rows
+    finally:
+        db.close()
+
+
+def clear_history(hashed_id: str) -> None:
+    db = new_session()
+    try:
+        db.query(WebchatMessage).filter(WebchatMessage.hashed_id == hashed_id).delete()
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
 
 
 def bootstrap_single_user() -> None:

@@ -20,7 +20,7 @@ from costaff_channel_chatbot import ChannelAdapter, make_internal_push_router
 
 from backend.auth import decode_token
 from backend.config import INTERNAL_SECRET, SINGLE_USER_EMAIL
-from backend.database import new_session, WebchatUser, hash_user_id
+from backend.database import new_session, WebchatUser, hash_user_id, persist_message
 from backend.file_links import make_token
 from backend.sse_hub import hub
 
@@ -39,13 +39,15 @@ class WebChatSSEAdapter(ChannelAdapter):
         await hub.publish(real_id, {"type": "agent_text", "text": text})
 
     async def push_frame(self, real_id: str, frame: dict) -> None:
-        # For agent_file frames, mint a signed download link the browser can
-        # fetch (the raw /app/data path is not reachable from the browser).
-        if frame.get("type") == "agent_file" and frame.get("path"):
+        ftype = frame.get("type")
+        # File frames: persist the on-disk path, then push a signed download
+        # link (the raw /app/data path isn't reachable from the browser).
+        if ftype == "agent_file" and frame.get("path"):
             path = frame["path"]
+            name = frame.get("name") or os.path.basename(path)
+            persist_message(real_id, "file", file_name=name, file_path=path)
             token = make_token(path)
             if token:
-                name = frame.get("name") or os.path.basename(path)
                 ext = os.path.splitext(name)[1].lower()
                 await hub.publish(real_id, {
                     "type": "agent_file",
@@ -54,6 +56,10 @@ class WebChatSSEAdapter(ChannelAdapter):
                     "preview": "image" if ext in _IMG_EXTS else None,
                 })
             return
+        # Finished replies persist to the transcript; live progress is
+        # ephemeral (not saved — it re-renders from nothing on reload).
+        if ftype == "agent_text" and frame.get("text"):
+            persist_message(real_id, "agent", text=frame["text"])
         await hub.publish(real_id, frame)
 
     async def reply(self, msg, text):  # not used by OSS (request/response)

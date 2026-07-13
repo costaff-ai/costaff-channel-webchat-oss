@@ -41,7 +41,7 @@ from costaff_channel_chatbot.response import (
 
 from backend.auth import get_current_user, get_identity
 from backend.config import ADK_APP_NAME
-from backend.database import get_db, WebchatUser, hash_user_id
+from backend.database import get_db, WebchatUser, hash_user_id, persist_message, clear_history
 from backend.file_links import make_token, verify_token
 
 logger = logging.getLogger(__name__)
@@ -97,7 +97,8 @@ def _extract_files(final_res: str) -> tuple[str, list[dict]]:
         protected = rewrite_with_hint(protected, raw, name)
         token = make_token(resolved)
         if token:
-            files.append({"filename": name, "url": f"/api/files/{token}"})
+            # `path` is for persistence only — stripped before the client sees it.
+            files.append({"filename": name, "url": f"/api/files/{token}", "path": resolved})
 
     clean = restore_code_blocks(protected, code_blocks)
     clean = strip_leftover_hints(clean, ATTACHMENT_HINT)
@@ -137,12 +138,27 @@ async def run(
         )
         parts[0]["text"] += " " + paths_note
 
+    # Persist the user's message BEFORE the (possibly long) agent call so it
+    # survives even if the reply times out.
+    if user_text:
+        persist_message(hashed_id, "user", text=user_text)
+
     # Session creation, locking, retries and the empty-reply nudge all
     # live inside run_adk_prompt.
     reply = await run_adk_prompt(ADK_APP_NAME, hashed_id, session_id, parts=parts)
 
     clean, files = _extract_files(reply)
-    return {"reply": clean, "files": files}
+
+    # Persist the agent reply + any files so the transcript restores on reload.
+    if clean:
+        persist_message(hashed_id, "agent", text=clean)
+    for f in files:
+        persist_message(hashed_id, "file", file_name=f["filename"],
+                        file_path=f.get("path"))
+
+    # Strip the server-side path before returning to the client.
+    client_files = [{"filename": f["filename"], "url": f["url"]} for f in files]
+    return {"reply": clean, "files": client_files}
 
 
 @router.get("/api/files/{token}")
@@ -191,6 +207,32 @@ async def upload_file(
         return {"type": "document", "path": fpath, "filename": fname}
 
 
+@router.get("/api/history")
+async def history(
+    current_user: WebchatUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The user's persistent single-thread transcript, oldest first.
+
+    File rows re-mint a fresh download token at load time (the token stored
+    at send time is short-lived). Returns items the frontend renders the
+    same way it renders live messages."""
+    _require_approved(current_user, db)
+    from backend.database import load_history
+    hashed_id = hash_user_id(current_user.email)
+    out = []
+    for m in load_history(hashed_id):
+        if m.role == "file":
+            item = {"role": "file", "filename": m.file_name}
+            token = make_token(m.file_path) if m.file_path else None
+            if token:
+                item["url"] = f"/api/files/{token}"
+            out.append(item)
+        else:
+            out.append({"role": m.role, "text": m.text or ""})
+    return {"items": out}
+
+
 @router.delete("/api/session")
 async def reset_session(
     current_user: WebchatUser = Depends(get_current_user),
@@ -200,4 +242,5 @@ async def reset_session(
     hashed_id = hash_user_id(current_user.email)
     session_id = f"web_{hashed_id}"
     await delete_session(ADK_APP_NAME, hashed_id, session_id)
+    clear_history(hashed_id)  # a reset wipes the persistent transcript too
     return {"status": "reset"}

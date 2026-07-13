@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AuthError,
+  fetchHistory,
   fetchMe,
   getToken,
   resetSession,
@@ -69,13 +70,33 @@ export default function ChatPage({ onLogout }: ChatPageProps) {
     setItems((prev) => prev.filter((it) => it.id !== id));
   }
 
-  // ── Auth on mount ─────────────────────────────────────────────────────
+  // ── Auth + restore transcript on mount ────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const data = await fetchMe();
-        if (!cancelled) setMe(data);
+        if (cancelled) return;
+        setMe(data);
+        // Single persistent thread: replace the seed welcome with the saved
+        // conversation so closing and reopening the window resumes it.
+        const hist = await fetchHistory();
+        if (cancelled || hist.length === 0) return;
+        setItems(
+          hist.map((h) => {
+            const id = idRef.current++;
+            if (h.role === "file") {
+              const name = h.filename ?? "file";
+              const html = h.url
+                ? `<a href="${escapeHtml(h.url)}" download="${escapeHtml(name)}" target="_blank" rel="noopener">📎 ${escapeHtml(name)}</a>`
+                : `📎 ${escapeHtml(name)}`;
+              return { id, role: "agent" as Role, html };
+            }
+            const text = h.text ?? "";
+            const html = h.role === "user" ? escapeHtml(text) : formatReply(text);
+            return { id, role: (h.role === "user" ? "user" : "agent") as Role, html };
+          }),
+        );
       } catch (err) {
         if (err instanceof AuthError) onLogout();
       }

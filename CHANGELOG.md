@@ -6,6 +6,37 @@ All notable changes to this project are recorded here. Format follows
 
 ## [Unreleased]
 
+## [0.1.0-beta-3] - 2026-07-14
+
+Version jumps alpha-2 → beta-3 to align with the CoStaff product line (core
+is on beta-3); there were no separate WebChat beta-1/beta-2 releases.
+
+### Added
+
+- **Async task-result delivery ("notify you later").** A background task that
+  finishes after the request returns is now pushed into the chat over SSE
+  (`/api/stream`), via the shared `/api/internal/push` receiver. This is the
+  same shared push capability the other channels have; requires the core to be
+  on beta-3 (which sends to `WEBCHAT_PUSH_URL`).
+- **Persistent single-thread history.** Messages are saved server-side
+  (`webchat_oss_messages`); closing and reopening the window restores the full
+  transcript via `/api/history`. One continuous thread by design — no
+  multi-session switching (that stays an Enterprise feature). `RESET` clears it.
+- **"OSS" edition badge** next to the CoStaff wordmark, so the open-source and
+  Enterprise builds are distinguishable at a glance.
+
+### Fixed
+
+- **IME composition no longer sends prematurely.** Pressing Enter to pick a
+  candidate while composing (Zhuyin/Pinyin/Japanese/Korean) confirmed the word
+  *and* fired send, leaking a half-typed message and a stuck fragment. Enter is
+  now ignored while `isComposing`.
+- **Code blocks render cleanly.** Fenced code kept literal newlines instead of
+  `<br>`, and inline-code styling no longer bleeds onto each line of a block
+  (which had painted a grey box per line). The `<pre>` owns one background.
+- **Docker build.** Added `git` to the image so pip can fetch the `git+` shared
+  library (the build previously failed).
+
 ## [0.1.0-alpha-2] - 2026-06-14
 
 ### Changed

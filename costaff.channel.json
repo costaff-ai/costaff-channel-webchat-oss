@@ -1,6 +1,6 @@
 {
   "name": "webchat",
-  "version": "0.1.0-alpha-2",
+  "version": "0.1.0-beta-3",
   "description": "CoStaff 官方網頁對話介面，提供無需通訊軟體的直接瀏覽器存取功能。",
   "a2a_service": "webchat",
   "port": 80,

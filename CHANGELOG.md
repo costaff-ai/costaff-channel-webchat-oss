@@ -6,6 +6,14 @@ All notable changes to this project are recorded here. Format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-04
+
+First stable release, aligned with the CoStaff v0.1.0 ecosystem release.
+
+### Changed
+
+- Pinned the shared chatbot library to `v0.1.0` (was `v0.1.0-beta-3`).
+
 ## [0.1.0-beta-3] - 2026-07-14
 
 Version jumps alpha-2 → beta-3 to align with the CoStaff product line (core
